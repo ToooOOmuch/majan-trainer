@@ -1,11 +1,11 @@
 import type { Question } from './logic/generate';
 
-export type ModeId = 'wait' | 'nanikiru' | 'danger' | 'score';
+export type ModeId = 'wait' | 'nanikiru' | 'read' | 'score';
 
 export const MODE_NAMES: Record<ModeId, string> = {
   wait: '待ち当て',
   nanikiru: '何切る',
-  danger: '危険牌クイズ',
+  read: '当たり牌読み',
   score: '点数計算',
 };
 
@@ -43,7 +43,7 @@ export function emptyStats(): Stats {
   return {
     wait: { correct: 0, total: 0 },
     nanikiru: { correct: 0, total: 0 },
-    danger: { correct: 0, total: 0 },
+    read: { correct: 0, total: 0 },
     score: { correct: 0, total: 0 },
   };
 }
@@ -60,7 +60,8 @@ export function recordResult(mode: ModeId, correct: boolean): Stats {
 }
 
 export function loadMistakes(): Mistake[] {
-  return load<Mistake[]>(MISTAKES_KEY, []);
+  // なくなったモード（危険牌クイズ）の問題は読み込まない
+  return load<Mistake[]>(MISTAKES_KEY, []).filter((m) => m.mode in MODE_NAMES);
 }
 
 export function addMistake(mode: ModeId, question: Question) {

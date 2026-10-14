@@ -1,68 +1,98 @@
 import { Counts, TILE_KINDS, Tile, isHonor, isYaochu, toCounts } from './tiles';
 
-/** 通常形（4面子1雀頭）のシャンテン数。和了形なら -1。鳴きのない13枚・14枚の手が対象 */
-export function standardShanten(c: Counts): number {
-  const counts = [...c];
-  let best = 8;
+/** 1つの色（萬子・筒子・索子・字牌）の中での [面子数, 塔子数, 雀頭の有無] の組み合わせ */
+type Pattern = [mentsu: number, taatsu: number, pair: number];
 
-  const search = (pos: number, mentsu: number, taatsu: number, pair: number) => {
-    while (pos < TILE_KINDS && counts[pos] === 0) pos++;
-    if (pos >= TILE_KINDS) {
-      const t = Math.min(taatsu, 4 - mentsu);
-      const s = 8 - mentsu * 2 - t - pair;
-      if (s < best) best = s;
+const patternCache = new Map<string, Pattern[]>();
+
+function suitPatterns(counts: number[], honor: boolean): Pattern[] {
+  const key = (honor ? 'z' : 'n') + counts.join('');
+  const cached = patternCache.get(key);
+  if (cached) return cached;
+
+  const found = new Map<string, Pattern>();
+  const c = [...counts];
+  const len = c.length;
+  const search = (pos: number, m: number, t: number, p: number) => {
+    while (pos < len && c[pos] === 0) pos++;
+    if (pos >= len) {
+      found.set(`${m},${t},${p}`, [m, t, p]);
       return;
     }
-    const num = pos % 9;
-    const honor = isHonor(pos);
-
-    if (counts[pos] >= 3) {
-      counts[pos] -= 3;
-      search(pos, mentsu + 1, taatsu, pair);
-      counts[pos] += 3;
+    if (p === 0 && c[pos] >= 2) {
+      c[pos] -= 2;
+      search(pos, m, t, 1);
+      c[pos] += 2;
     }
-    if (!honor && num <= 6 && counts[pos + 1] > 0 && counts[pos + 2] > 0) {
-      counts[pos]--;
-      counts[pos + 1]--;
-      counts[pos + 2]--;
-      search(pos, mentsu + 1, taatsu, pair);
-      counts[pos]++;
-      counts[pos + 1]++;
-      counts[pos + 2]++;
+    if (c[pos] >= 3) {
+      c[pos] -= 3;
+      search(pos, m + 1, t, p);
+      c[pos] += 3;
     }
-    if (counts[pos] >= 2) {
-      counts[pos] -= 2;
-      search(pos, mentsu, taatsu + 1, pair);
-      counts[pos] += 2;
+    if (!honor && pos + 2 < len && c[pos + 1] > 0 && c[pos + 2] > 0) {
+      c[pos]--;
+      c[pos + 1]--;
+      c[pos + 2]--;
+      search(pos, m + 1, t, p);
+      c[pos]++;
+      c[pos + 1]++;
+      c[pos + 2]++;
     }
-    if (!honor && num <= 7 && counts[pos + 1] > 0) {
-      counts[pos]--;
-      counts[pos + 1]--;
-      search(pos, mentsu, taatsu + 1, pair);
-      counts[pos]++;
-      counts[pos + 1]++;
+    if (c[pos] >= 2) {
+      c[pos] -= 2;
+      search(pos, m, t + 1, p);
+      c[pos] += 2;
     }
-    if (!honor && num <= 6 && counts[pos + 2] > 0) {
-      counts[pos]--;
-      counts[pos + 2]--;
-      search(pos, mentsu, taatsu + 1, pair);
-      counts[pos]++;
-      counts[pos + 2]++;
+    if (!honor && pos + 1 < len && c[pos + 1] > 0) {
+      c[pos]--;
+      c[pos + 1]--;
+      search(pos, m, t + 1, p);
+      c[pos]++;
+      c[pos + 1]++;
+    }
+    if (!honor && pos + 2 < len && c[pos + 2] > 0) {
+      c[pos]--;
+      c[pos + 2]--;
+      search(pos, m, t + 1, p);
+      c[pos]++;
+      c[pos + 2]++;
     }
     // 孤立牌として扱う
-    counts[pos]--;
-    search(pos, mentsu, taatsu, pair);
-    counts[pos]++;
+    c[pos]--;
+    search(pos, m, t, p);
+    c[pos]++;
   };
-
-  for (let t = 0; t < TILE_KINDS; t++) {
-    if (counts[t] >= 2) {
-      counts[t] -= 2;
-      search(0, 0, 0, 1);
-      counts[t] += 2;
-    }
-  }
   search(0, 0, 0, 0);
+
+  // 面子・塔子・雀頭のどれも上回る組み合わせがあるものは捨てる
+  const all = [...found.values()];
+  const result = all.filter(
+    (a) => !all.some((b) => b !== a && b[0] >= a[0] && b[1] >= a[1] && b[2] >= a[2] && (b[0] > a[0] || b[1] > a[1] || b[2] > a[2])),
+  );
+  patternCache.set(key, result);
+  return result;
+}
+
+/** 通常形（4面子1雀頭）のシャンテン数。和了形なら -1。鳴きのない13枚・14枚の手が対象 */
+export function standardShanten(c: Counts): number {
+  // 色ごとの組み合わせを計算して（結果は使い回す）、4色分を組み合わせる
+  let combos: Pattern[] = [[0, 0, 0]];
+  for (let s = 0; s < 4; s++) {
+    const pats = suitPatterns(c.slice(s * 9, s === 3 ? 34 : s * 9 + 9), s === 3);
+    const next: Pattern[] = [];
+    for (const a of combos) {
+      for (const b of pats) {
+        if (a[2] + b[2] > 1) continue;
+        next.push([a[0] + b[0], a[1] + b[1], a[2] + b[2]]);
+      }
+    }
+    combos = next;
+  }
+  let best = 8;
+  for (const [m, t, p] of combos) {
+    const s = 8 - m * 2 - Math.min(t, 4 - m) - p;
+    if (s < best) best = s;
+  }
   return best;
 }
 

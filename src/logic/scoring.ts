@@ -398,3 +398,15 @@ export function scoreHand(ctx: WinContext): ScoreResult | null {
   candidates.sort((a, b) => b.total - a.total || b.han - a.han || b.fu - a.fu);
   return candidates[0];
 }
+
+/** 13枚の手が win で和了するときの待ちの形（複数の解釈があればすべて） */
+export function waitTypesOf(hand: Tile[], win: Tile): WaitType[] {
+  const c = toCounts([...hand, win]);
+  const types = new Set<WaitType>();
+  for (const d of decompose(c)) {
+    for (const w of waitAssignments(d, win)) types.add(w.type);
+  }
+  if (isChiitoi(c) || isKokushi(c)) types.add('tanki');
+  const order: WaitType[] = ['ryanmen', 'shanpon', 'kanchan', 'penchan', 'tanki'];
+  return order.filter((t) => types.has(t));
+}

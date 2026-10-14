@@ -1,8 +1,8 @@
-import { DangerInfo, ReadContext, evaluateDanger } from './danger';
 import { Rng, pick, randInt, shuffle } from './random';
+import type { ReadQuestion } from './simulate';
 import { ScoreResult, WinContext, pointsFor, scoreHand } from './scoring';
 import { DiscardOption, bestDiscards, chiitoiShanten, discardOptions, standardShanten, waits } from './shanten';
-import { EAST, SOUTH, TILE_KINDS, Tile, WINDS, isHonor, isYaochu, sortTiles, toCounts } from './tiles';
+import { EAST, SOUTH, TILE_KINDS, Tile, WINDS, isHonor, sortTiles, toCounts } from './tiles';
 
 /** 山（各牌の残り枚数） */
 class Wall {
@@ -120,78 +120,6 @@ export function generateNanikiruQuestion(rng: Rng): NanikiruQuestion {
   }
 }
 
-// ---- 危険牌 ----
-
-export type DangerQuestion = {
-  kind: 'danger';
-  hand: Tile[];
-  /** リーチ者の捨て牌（最後がリーチ宣言牌） */
-  river: Tile[];
-  /** 捨て牌ごとのツモ切りかどうか（古い記録には無い） */
-  tsumogiri?: boolean[];
-  doraIndicator: Tile;
-  infos: DangerInfo[];
-};
-
-/** 捨て牌の手出し・ツモ切りから、読みに使う情報を取り出す */
-export function readContextOf(q: Pick<DangerQuestion, 'river' | 'tsumogiri'>): ReadContext | undefined {
-  if (!q.tsumogiri) return undefined;
-  const last = q.river.length - 1;
-  let lastTedashi: Tile | null = null;
-  for (let i = last - 1; i >= 0; i--) {
-    if (!q.tsumogiri[i]) {
-      lastTedashi = q.river[i];
-      break;
-    }
-  }
-  return { riichiTile: q.river[last], riichiTsumogiri: q.tsumogiri[last], lastTedashi };
-}
-
-/** 現物を除いた中で、最も安全な牌の危険度 */
-export function safestScore(q: Pick<DangerQuestion, 'infos'>): number {
-  return Math.min(...q.infos.filter((i) => i.score > 0).map((i) => i.score));
-}
-
-export function generateDangerQuestion(rng: Rng): DangerQuestion {
-  for (;;) {
-    const wall = new Wall();
-    const doraIndicator = wall.draw(rng);
-    const riverLen = 7 + randInt(rng, 8);
-    const river: Tile[] = [];
-    const tsumogiri: boolean[] = [];
-    for (let i = 0; i < riverLen - 1; i++) {
-      // 序盤は字牌や端の牌を手出しで切ることが多い
-      const early = i < 5;
-      river.push(wall.draw(rng, early && rng() < 0.7 ? isYaochu : () => true));
-      tsumogiri.push(rng() < (early ? 0.15 : 0.45));
-    }
-    // リーチ宣言牌。手出しなら、手の形の情報が出やすい中張牌にすることが多い
-    const riichiTsumogiri = rng() < 0.2;
-    const simple = (t: Tile) => !isYaochu(t);
-    river.push(wall.draw(rng, !riichiTsumogiri && rng() < 0.75 ? simple : () => true));
-    tsumogiri.push(riichiTsumogiri);
-
-    const hand = sortTiles(Array.from({ length: 13 }, () => wall.draw(rng)));
-    const visible = [...hand, ...river, doraIndicator];
-    const ctx = readContextOf({ river, tsumogiri });
-    const kinds = [...new Set(hand)];
-    const infos = kinds.map((t) => evaluateDanger(t, river, visible, ctx)).sort((a, b) => a.score - b.score || a.tile - b.tile);
-    // 現物は選べないので、現物以外の牌の中で問題を作る
-    const choices = infos.filter((i) => i.score > 0);
-    if (choices.length < 5) continue;
-    const safest = choices[0].score;
-    if (new Set(choices.map((i) => i.score)).size < 4) continue;
-    // 最も安全な牌が多すぎる問題は避ける
-    if (choices.filter((i) => i.score === safest).length > 2) continue;
-    // 手出しリーチの問題では、読みを入れないと選んでしまう牌（スジだけ見れば最も安全に見える牌）がある問題を多めにする
-    if (!riichiTsumogiri && rng() < 0.6) {
-      const trap = choices.some((i) => i.read && evaluateDanger(i.tile, river, visible).score <= safest);
-      if (!trap) continue;
-    }
-    return { kind: 'danger', hand, river, tsumogiri, doraIndicator, infos };
-  }
-}
-
 // ---- 点数計算 ----
 
 export type ScoreQuestion = {
@@ -262,4 +190,4 @@ function makeScoreChoices(rng: Rng, result: ScoreResult, ctx: WinContext): strin
   return shuffle(rng, [...labels]);
 }
 
-export type Question = WaitQuestion | NanikiruQuestion | DangerQuestion | ScoreQuestion;
+export type Question = WaitQuestion | NanikiruQuestion | ReadQuestion | ScoreQuestion;

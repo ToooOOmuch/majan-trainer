@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateDanger, readSujis } from './danger';
 import {
-  generateDangerQuestion,
   generateNanikiruQuestion,
   generateScoreQuestion,
   generateWaitQuestion,
-  safestScore,
 } from './generate';
+import { analyzeRead } from './read';
+import { generateReadQuestion } from './simulate';
 import { seededRng } from './random';
-import { WinContext, scoreHand } from './scoring';
+import { WinContext, scoreHand, waitTypesOf } from './scoring';
 import { discardOptions, shantenOf, waits } from './shanten';
 import { EAST, NORTH, SOUTH, formatTiles, parseTiles, toCounts } from './tiles';
 
@@ -136,6 +136,21 @@ describe('点数計算', () => {
   });
 });
 
+describe('待ちの形', () => {
+  it('両面・嵌張・辺張・双碰・単騎', () => {
+    expect(waitTypesOf(t('789m456p45s111z22z'), one('3s'))).toEqual(['ryanmen']);
+    expect(waitTypesOf(t('789m456p46s111z22z'), one('5s'))).toEqual(['kanchan']);
+    expect(waitTypesOf(t('789m456p12s111z22z'), one('3s'))).toEqual(['penchan']);
+    expect(waitTypesOf(t('789m456p789s1122z'), one('1z'))).toEqual(['shanpon']);
+    expect(waitTypesOf(t('123456789m1234p'), one('1p'))).toEqual(['tanki']);
+  });
+
+  it('解釈が複数あるときはすべて返す', () => {
+    // 3m は 345m の両面とも、123m の辺張とも取れる
+    expect(waitTypesOf(t('123m45m456p789s11z'), one('3m'))).toEqual(['ryanmen', 'penchan']);
+  });
+});
+
 describe('危険牌', () => {
   it('現物', () => {
     expect(evaluateDanger(one('5m'), t('5m'), []).label).toBe('現物');
@@ -201,16 +216,31 @@ describe('問題の生成', () => {
     }
   });
 
-  it('危険牌', () => {
-    for (let i = 0; i < 20; i++) {
-      const q = generateDangerQuestion(rng);
-      expect(q.hand).toHaveLength(13);
-      const all = [...q.hand, ...q.river, q.doraIndicator];
-      expect(q.tsumogiri).toHaveLength(q.river.length);
-      // 現物以外で、最も安全な牌は1〜2種類
-      const safest = safestScore(q);
-      expect(safest).toBeGreaterThan(0);
-      expect(q.infos.filter((i) => i.score === safest).length).toBeLessThanOrEqual(2);
+  it('当たり牌読み（4人の対局シミュレーション）', () => {
+    for (let i = 0; i < 30; i++) {
+      const q = generateReadQuestion(rng);
+      expect(q.hand).toHaveLength(14);
+      expect(q.riichiHand).toHaveLength(13);
+      // リーチ者はテンパイで、待ちは手牌から計算したものと一致する
+      expect(waits(toCounts(q.riichiHand))).toEqual(q.waits);
+      const own = q.rivers[q.riichiSeat];
+      const riichiIdx = own.findIndex((d) => d.riichi);
+      expect(riichiIdx).toBeGreaterThanOrEqual(0);
+      expect(own.filter((d) => d.riichi)).toHaveLength(1);
+      // リーチ後のリーチ者の打牌はすべてツモ切り
+      expect(own.slice(riichiIdx + 1).every((d) => d.tsumogiri)).toBe(true);
+      // フリテンではなく、リーチ後に当たり牌は誰も切っていない
+      expect(own.some((d) => q.waits.includes(d.tile))).toBe(false);
+      const after = q.rivers.flatMap((r) => r.filter((d) => d.afterRiichi).map((d) => d.tile));
+      expect(after.some((t) => q.waits.includes(t))).toBe(false);
+      // 自分の手牌に当たり牌が1〜2種類あり、それは選べる（通っていない）牌
+      const a = analyzeRead(q);
+      const hits = a.infos.filter((x) => x.hit);
+      expect(hits.length).toBeGreaterThanOrEqual(1);
+      expect(hits.length).toBeLessThanOrEqual(2);
+      expect(hits.every((x) => x.score > 0 && !a.safe.includes(x.tile))).toBe(true);
+      // 見えている牌は各4枚まで
+      const all = [...q.hand, ...q.riichiHand, ...q.rivers.flatMap((r) => r.map((d) => d.tile)), q.doraIndicator];
       expect(toCounts(all).every((n) => n <= 4)).toBe(true);
     }
   });

@@ -3,15 +3,15 @@ import { Tile, TileRow } from './components/Tile';
 import {
   Question,
   WaitMode as WaitKind,
-  generateDangerQuestion,
   generateNanikiruQuestion,
   generateScoreQuestion,
   generateWaitQuestion,
 } from './logic/generate';
-import { DangerMode } from './modes/DangerMode';
 import { NanikiruMode } from './modes/NanikiruMode';
+import { ReadMode } from './modes/ReadMode';
 import { ScoreMode } from './modes/ScoreMode';
 import { WaitMode } from './modes/WaitMode';
+import { generateReadQuestion } from './logic/simulate';
 import {
   MODE_NAMES,
   Mistake,
@@ -30,11 +30,11 @@ type Screen = { name: 'home' } | { name: 'play'; mode: ModeId; review?: Mistake 
 const MODE_DESCRIPTIONS: Record<ModeId, string> = {
   wait: 'テンパイの手を見て、待ちをすべて答える',
   nanikiru: '14枚から、受け入れが最も広くなる牌を切る',
-  danger: 'リーチに対して、手牌でいちばん安全な牌を選ぶ',
+  read: '4人の捨て牌からリーチ者の待ちを読み、手牌の当たり牌を見抜く',
   score: '和了の点数を4択で答える',
 };
 
-const MODES: ModeId[] = ['wait', 'nanikiru', 'danger', 'score'];
+const MODES: ModeId[] = ['wait', 'nanikiru', 'read', 'score'];
 
 function generate(mode: ModeId, waitKind: WaitKind): Question {
   switch (mode) {
@@ -42,8 +42,8 @@ function generate(mode: ModeId, waitKind: WaitKind): Question {
       return generateWaitQuestion(Math.random, waitKind);
     case 'nanikiru':
       return generateNanikiruQuestion(Math.random);
-    case 'danger':
-      return generateDangerQuestion(Math.random);
+    case 'read':
+      return generateReadQuestion(Math.random);
     case 'score':
       return generateScoreQuestion(Math.random);
   }
@@ -192,7 +192,7 @@ function Play({
 
       {question.kind === 'wait' && <WaitMode key={round} question={question} onAnswer={onAnswer} />}
       {question.kind === 'nanikiru' && <NanikiruMode key={round} question={question} onAnswer={onAnswer} />}
-      {question.kind === 'danger' && <DangerMode key={round} question={question} onAnswer={onAnswer} />}
+      {question.kind === 'read' && <ReadMode key={round} question={question} onAnswer={onAnswer} />}
       {question.kind === 'score' && <ScoreMode key={round} question={question} onAnswer={onAnswer} />}
 
       {result !== null && (
@@ -217,7 +217,7 @@ function questionPreview(q: Question) {
   switch (q.kind) {
     case 'wait':
     case 'nanikiru':
-    case 'danger':
+    case 'read':
       return <TileRow tiles={q.hand} small />;
     case 'score':
       return (
