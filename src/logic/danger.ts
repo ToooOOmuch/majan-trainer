@@ -6,7 +6,37 @@ export type DangerInfo = {
   score: number;
   label: string;
   reason: string;
+  /** 手出し・ツモ切りからの読みで危険度が上がったときの説明 */
+  read?: string;
 };
+
+/** 手出し・ツモ切りから読むための情報 */
+export type ReadContext = {
+  riichiTile: Tile;
+  /** リーチ宣言牌がツモ切りなら true（手の形の情報がない） */
+  riichiTsumogiri: boolean;
+  /** 宣言牌より前で、最後に手出しされた牌 */
+  lastTedashi: Tile | null;
+};
+
+/** 宣言牌 x から見て、lo-hi のスジ（両面待ち）が裏スジ・またぎスジに当たるか */
+export function sujiRelation(x: number, lo: number, hi: number): '裏スジ' | 'またぎスジ' | null {
+  // 裏スジ: x, x+2, x+3 から x を切ると x+2, x+3 が残り x+1-x+4 待ち（反対側も同様）
+  if (lo === x + 1 || hi === x - 1) return '裏スジ';
+  // またぎスジ: x, x, x+1 から x を切ると x, x+1 が残り x-1-x+2 待ち（x-2-x+1 も同様）
+  if (lo === x - 2 || lo === x - 1) return 'またぎスジ';
+  return null;
+}
+
+/** 宣言牌 x の裏スジとまたぎスジ（1〜9 の範囲に入るものだけ） */
+export function readSujis(x: number): { kind: '裏スジ' | 'またぎスジ'; lo: number; hi: number }[] {
+  const out: { kind: '裏スジ' | 'またぎスジ'; lo: number; hi: number }[] = [];
+  for (let lo = 1; lo <= 6; lo++) {
+    const kind = sujiRelation(x, lo, lo + 3);
+    if (kind) out.push({ kind, lo, hi: lo + 3 });
+  }
+  return out;
+}
 
 type ShapeStatus = 'live' | 'suji' | 'nochance';
 
@@ -14,7 +44,7 @@ type ShapeStatus = 'live' | 'suji' | 'nochance';
  * リーチ者に対する牌の危険度を、両面待ちの残り方を中心にざっくり評価する。
  * river: リーチ者の捨て牌, visible: 自分から見えているすべての牌（自分の手牌・全員の捨て牌・ドラ表示牌）
  */
-export function evaluateDanger(tile: Tile, river: Tile[], visible: Tile[]): DangerInfo {
+export function evaluateDanger(tile: Tile, river: Tile[], visible: Tile[], ctx?: ReadContext): DangerInfo {
   const seen = (t: Tile) => visible.filter((v) => v === t).length;
 
   if (river.includes(tile)) {
@@ -48,7 +78,25 @@ export function evaluateDanger(tile: Tile, river: Tile[], visible: Tile[]): Dang
   if (n >= 4) checkShape(n - 2, n - 3);
 
   const live = shapes.filter((s) => s.status === 'live').length;
-  const score = 1 + live * 3 + (n !== 1 && n !== 9 ? 1 : 0) + (n >= 3 && n <= 7 ? 1 : 0);
+  let score = 1 + live * 3 + (n !== 1 && n !== 9 ? 1 : 0) + (n >= 3 && n <= 7 ? 1 : 0);
+
+  // 手出しされた宣言牌・直前の手出し牌の裏スジ／またぎスジにある待ちは残りやすい
+  let read: string | undefined;
+  const readFrom = (src: Tile, what: string, bonus: number) => {
+    if (read || isHonor(src) || src - (numberOf(src) - 1) !== base) return;
+    for (const sh of shapes) {
+      if (sh.status !== 'live') continue;
+      const lo = sh.a - 1;
+      const kind = sujiRelation(numberOf(src), lo, lo + 3);
+      if (kind) {
+        score += bonus;
+        read = `${what}${tileName(src)}の${kind}（${lo}-${lo + 3}）に当たります。`;
+        return;
+      }
+    }
+  };
+  if (ctx && !ctx.riichiTsumogiri) readFrom(ctx.riichiTile, '手出しのリーチ宣言牌', 2);
+  if (ctx?.lastTedashi != null) readFrom(ctx.lastTedashi, 'リーチ直前の手出し牌', 1);
 
   const sujiTiles = shapes
     .filter((s) => s.status === 'suji')
@@ -74,5 +122,5 @@ export function evaluateDanger(tile: Tile, river: Tile[], visible: Tile[]): Dang
   if (noChance.length) parts.push(`${noChance.join('・')}が4枚見えているので、その牌を使う両面待ちはありません`);
   if (live > 0) parts.push(`両面待ちに当たる形が${live}通り残っています`);
   else parts.push('両面待ちには当たりません。嵌張・単騎・双碰には当たることがあります');
-  return { tile, score, label, reason: parts.join('。') + '。' };
+  return { tile, score, label, reason: parts.join('。') + '。', read };
 }

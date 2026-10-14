@@ -199,6 +199,12 @@ button {
   opacity: 0.35;
 }
 
+/* ツモ切りの牌は灰色にする */
+.tile.mark-tsumogiri {
+  background: linear-gradient(180deg, #e4e2dc 0%, #d6d3cb 100%);
+  filter: saturate(0.45) brightness(0.92);
+}
+
 /* 横向きの牌（リーチ宣言牌）。枠の縦横を入れ替えて、絵柄だけを回転させる */
 .tile.sideways {
   width: calc(var(--w) * 1.36);
@@ -475,6 +481,22 @@ table.options tr.sum td {
 .danger-list p {
   margin: 4px 0 0;
   font-size: 0.88rem;
+}
+
+.read-note {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.read-points {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  padding-bottom: 4px;
+}
+
+.read-points p {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
 }
 
 .danger-head {

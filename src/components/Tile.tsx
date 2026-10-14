@@ -6,7 +6,7 @@ type Props = {
   onClick?: () => void;
   selected?: boolean;
   /** 正解・不正解などの強調 */
-  mark?: 'good' | 'bad' | 'dim';
+  mark?: 'good' | 'bad' | 'dim' | 'tsumogiri';
   sideways?: boolean;
   small?: boolean;
 };

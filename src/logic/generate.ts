@@ -1,4 +1,4 @@
-import { DangerInfo, evaluateDanger } from './danger';
+import { DangerInfo, ReadContext, evaluateDanger } from './danger';
 import { Rng, pick, randInt, shuffle } from './random';
 import { ScoreResult, WinContext, pointsFor, scoreHand } from './scoring';
 import { DiscardOption, bestDiscards, chiitoiShanten, discardOptions, standardShanten, waits } from './shanten';
@@ -127,9 +127,25 @@ export type DangerQuestion = {
   hand: Tile[];
   /** リーチ者の捨て牌（最後がリーチ宣言牌） */
   river: Tile[];
+  /** 捨て牌ごとのツモ切りかどうか（古い記録には無い） */
+  tsumogiri?: boolean[];
   doraIndicator: Tile;
   infos: DangerInfo[];
 };
+
+/** 捨て牌の手出し・ツモ切りから、読みに使う情報を取り出す */
+export function readContextOf(q: Pick<DangerQuestion, 'river' | 'tsumogiri'>): ReadContext | undefined {
+  if (!q.tsumogiri) return undefined;
+  const last = q.river.length - 1;
+  let lastTedashi: Tile | null = null;
+  for (let i = last - 1; i >= 0; i--) {
+    if (!q.tsumogiri[i]) {
+      lastTedashi = q.river[i];
+      break;
+    }
+  }
+  return { riichiTile: q.river[last], riichiTsumogiri: q.tsumogiri[last], lastTedashi };
+}
 
 export function generateDangerQuestion(rng: Rng): DangerQuestion {
   for (;;) {
@@ -137,15 +153,24 @@ export function generateDangerQuestion(rng: Rng): DangerQuestion {
     const doraIndicator = wall.draw(rng);
     const riverLen = 7 + randInt(rng, 8);
     const river: Tile[] = [];
-    for (let i = 0; i < riverLen; i++) {
-      // 序盤は字牌や端の牌が切られやすい
-      const early = i < 5 && rng() < 0.7;
-      river.push(wall.draw(rng, early ? isYaochu : () => true));
+    const tsumogiri: boolean[] = [];
+    for (let i = 0; i < riverLen - 1; i++) {
+      // 序盤は字牌や端の牌を手出しで切ることが多い
+      const early = i < 5;
+      river.push(wall.draw(rng, early && rng() < 0.7 ? isYaochu : () => true));
+      tsumogiri.push(rng() < (early ? 0.15 : 0.45));
     }
+    // リーチ宣言牌。手出しなら、手の形の情報が出やすい中張牌にすることが多い
+    const riichiTsumogiri = rng() < 0.2;
+    const simple = (t: Tile) => !isYaochu(t);
+    river.push(wall.draw(rng, !riichiTsumogiri && rng() < 0.75 ? simple : () => true));
+    tsumogiri.push(riichiTsumogiri);
+
     const hand = sortTiles(Array.from({ length: 13 }, () => wall.draw(rng)));
     const visible = [...hand, ...river, doraIndicator];
+    const ctx = readContextOf({ river, tsumogiri });
     const kinds = [...new Set(hand)];
-    const infos = kinds.map((t) => evaluateDanger(t, river, visible)).sort((a, b) => a.score - b.score || a.tile - b.tile);
+    const infos = kinds.map((t) => evaluateDanger(t, river, visible, ctx)).sort((a, b) => a.score - b.score || a.tile - b.tile);
     const hasGenbutsu = infos[0].score === 0;
     // 現物がある問題は簡単すぎるので3割程度にする
     if (hasGenbutsu && rng() < 0.7) continue;
@@ -153,7 +178,12 @@ export function generateDangerQuestion(rng: Rng): DangerQuestion {
     if (distinctScores < 4) continue;
     // 最も安全な牌が多すぎる問題は避ける
     if (infos.filter((i) => i.score === infos[0].score).length > 2) continue;
-    return { kind: 'danger', hand, river, doraIndicator, infos };
+    // 手出しリーチの問題では、読みを入れないと選んでしまう牌（スジだけ見れば最も安全に見える牌）がある問題を多めにする
+    if (!riichiTsumogiri && rng() < 0.6) {
+      const trap = infos.some((i) => i.read && evaluateDanger(i.tile, river, visible).score <= infos[0].score);
+      if (!trap) continue;
+    }
+    return { kind: 'danger', hand, river, tsumogiri, doraIndicator, infos };
   }
 }
 

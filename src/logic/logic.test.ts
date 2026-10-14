@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateDanger } from './danger';
+import { evaluateDanger, readSujis } from './danger';
 import {
   generateDangerQuestion,
   generateNanikiruQuestion,
@@ -149,6 +149,31 @@ describe('危険牌', () => {
     expect(evaluateDanger(one('5p'), t('2p'), t('5p2p')).label).toBe('片スジ');
     expect(evaluateDanger(one('5p'), t('1z'), t('5p1z')).label).toBe('無スジ');
   });
+  it('手出しの宣言牌の裏スジ・またぎスジは危険度が上がる', () => {
+    const ctx = { riichiTile: one('5m'), riichiTsumogiri: false, lastTedashi: null };
+    // 4m は 1-4（5m の裏スジ）と 4-7（またぎスジ）の両方の両面待ちに当たる
+    const plain = evaluateDanger(one('4m'), t('5m'), t('4m5m'));
+    const read = evaluateDanger(one('4m'), t('5m'), t('4m5m'), ctx);
+    expect(read.score).toBe(plain.score + 2);
+    expect(read.read).toContain('5萬');
+  });
+  it('ツモ切りリーチなら宣言牌からは読まない', () => {
+    const ctx = { riichiTile: one('5m'), riichiTsumogiri: true, lastTedashi: null };
+    const d = evaluateDanger(one('4m'), t('5m'), t('4m5m'), ctx);
+    expect(d.read).toBeUndefined();
+  });
+  it('スジで消えている待ちは、宣言牌の裏スジでも危険度を上げない', () => {
+    const ctx = { riichiTile: one('5m'), riichiTsumogiri: false, lastTedashi: null };
+    // 1m は 1-4（5m の裏スジ）だけに当たるが、4m が捨てられているので 1-4 待ちはない
+    const d = evaluateDanger(one('1m'), t('4m5m'), t('1m4m5m'), ctx);
+    expect(d.read).toBeUndefined();
+    expect(d.label).toBe('スジ');
+  });
+  it('裏スジとまたぎスジの一覧', () => {
+    expect(readSujis(5).map((s) => `${s.kind}${s.lo}-${s.hi}`).sort()).toEqual(
+      ['またぎスジ3-6', 'またぎスジ4-7', '裏スジ1-4', '裏スジ6-9'].sort(),
+    );
+  });
   it('ノーチャンス', () => {
     expect(evaluateDanger(one('3s'), t('1z'), t('3s4444s1z')).label).toBe('ノーチャンス');
   });
@@ -180,6 +205,7 @@ describe('問題の生成', () => {
       const q = generateDangerQuestion(rng);
       expect(q.hand).toHaveLength(13);
       const all = [...q.hand, ...q.river, q.doraIndicator];
+      expect(q.tsumogiri).toHaveLength(q.river.length);
       expect(toCounts(all).every((n) => n <= 4)).toBe(true);
     }
   });
