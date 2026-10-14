@@ -25,6 +25,8 @@ export function DangerMode({ question, onAnswer }: Props) {
   };
 
   const riichiIndex = question.river.length - 1;
+  // 捨て牌は実物と同じく6枚ずつ並べる
+  const riverRows = [0, 6, 12].map((start) => question.river.slice(start, start + 6)).filter((r) => r.length);
 
   return (
     <div className="mode">
@@ -40,8 +42,12 @@ export function DangerMode({ question, onAnswer }: Props) {
         </div>
         <div className="river-label">リーチ者の捨て牌（横向きがリーチ宣言牌）</div>
         <div className="river">
-          {question.river.map((t, i) => (
-            <Tile key={i} tile={t} small sideways={i === riichiIndex} />
+          {riverRows.map((row, r) => (
+            <div key={r} className="tile-row">
+              {row.map((t, i) => (
+                <Tile key={i} tile={t} small sideways={r * 6 + i === riichiIndex} />
+              ))}
+            </div>
           ))}
         </div>
       </div>

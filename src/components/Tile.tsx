@@ -1,4 +1,5 @@
-import { HONOR_NAMES, SUIT_NAMES, Tile as TileId, isHonor, numberOf, suitOf, tileName } from '../logic/tiles';
+import { Tile as TileId, suitOf, tileName } from '../logic/tiles';
+import { TileFace } from './TileFace';
 
 type Props = {
   tile: TileId;
@@ -13,21 +14,13 @@ type Props = {
 export function Tile({ tile, onClick, selected, mark, sideways, small }: Props) {
   const suit = suitOf(tile);
   const classes = ['tile', `tile-${suit}`];
-  if (isHonor(tile)) classes.push(`tile-z${tile - 26}`);
   if (onClick) classes.push('clickable');
   if (selected) classes.push('selected');
   if (mark) classes.push(`mark-${mark}`);
   if (sideways) classes.push('sideways');
   if (small) classes.push('small');
 
-  const face = isHonor(tile) ? (
-    <span className="tile-honor">{tile === 31 ? '' : HONOR_NAMES[tile - 27]}</span>
-  ) : (
-    <>
-      <span className="tile-num">{numberOf(tile)}</span>
-      <span className="tile-suit">{SUIT_NAMES[suit]}</span>
-    </>
-  );
+  const face = <TileFace tile={tile} />;
 
   if (onClick) {
     return (

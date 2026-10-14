@@ -10,13 +10,8 @@
   --good-bg: #e3f4ea;
   --bad: #c0392b;
   --bad-bg: #fbe5e2;
-  --tile-face: #fffdf6;
-  --tile-edge: #d8cfb5;
-  --tile-back: #e9b949;
-  --man: #b3261e;
-  --pin: #1d4f91;
-  --sou: #1d7a3e;
-  --tile-w: min(40px, calc((100vw - 40px) / 14.6));
+  --tile-back: #2f8a5b;
+  --tile-w: min(44px, calc((100vw - 40px) / 14.6));
   color-scheme: light;
 }
 
@@ -143,65 +138,36 @@ button {
 
 .tile {
   --w: var(--tile-w);
+  position: relative;
   width: var(--w);
   height: calc(var(--w) * 1.36);
   flex: none;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--tile-face);
-  border: 1px solid var(--tile-edge);
-  border-bottom: 4px solid var(--tile-back);
-  border-radius: 5px;
-  color: #222;
-  font-weight: 700;
-  line-height: 1;
-  padding: 0;
+  padding: calc(var(--w) * 0.08) calc(var(--w) * 0.06);
+  /* 象牙色の表面と、下に見える緑の背 */
+  background: linear-gradient(180deg, #fffef9 0%, #fbf6e8 70%, #efe6cf 100%);
+  border: 1px solid #c9bd9c;
+  border-radius: calc(var(--w) * 0.14);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 #e2d6b6,
+    0 calc(var(--w) * 0.1) 0 -1px var(--tile-back),
+    0 calc(var(--w) * 0.1 + 1px) 2px rgba(0, 0, 0, 0.25);
+  margin-bottom: calc(var(--w) * 0.1);
   user-select: none;
-  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', serif;
 }
 
 .tile.small {
-  --w: min(26px, calc((100vw - 40px) / 14.6));
+  --w: min(30px, calc((100vw - 40px) / 14.6));
 }
 
-.tile-num {
-  font-size: calc(var(--w) * 0.55);
-}
-
-.tile-suit {
-  font-size: calc(var(--w) * 0.36);
-  margin-top: 2px;
-}
-
-.tile-m .tile-suit {
-  color: var(--man);
-}
-.tile-p .tile-num,
-.tile-p .tile-suit {
-  color: var(--pin);
-}
-.tile-s .tile-num,
-.tile-s .tile-suit {
-  color: var(--sou);
-}
-
-.tile-honor {
-  font-size: calc(var(--w) * 0.62);
-}
-.tile-z6 .tile-honor {
-  color: var(--sou);
-}
-.tile-z7 .tile-honor {
-  color: var(--man);
-}
-/* 白は枠だけ */
-.tile-z5 .tile-honor {
-  width: 60%;
-  height: 58%;
-  border: 2px solid var(--pin);
-  border-radius: 3px;
+.tile-face {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
 }
 
 .tile.clickable {
@@ -215,24 +181,36 @@ button {
 
 .tile.selected {
   transform: translateY(-6px);
-  box-shadow: 0 0 0 2px var(--accent);
+  outline: 3px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .tile.mark-good {
-  box-shadow: 0 0 0 3px var(--good);
+  outline: 3px solid var(--good);
+  outline-offset: 1px;
 }
 
 .tile.mark-bad {
-  box-shadow: 0 0 0 3px var(--bad);
+  outline: 3px solid var(--bad);
+  outline-offset: 1px;
 }
 
 .tile.mark-dim {
   opacity: 0.35;
 }
 
+/* 横向きの牌（リーチ宣言牌）。枠の縦横を入れ替えて、絵柄だけを回転させる */
 .tile.sideways {
+  width: calc(var(--w) * 1.36);
+  height: var(--w);
+  padding: 0;
+}
+
+.tile.sideways .tile-face {
+  flex: none;
+  width: calc(var(--w) * 0.84);
+  height: calc(var(--w) * 1.12);
   transform: rotate(90deg);
-  margin: 0 calc(var(--w) * 0.18);
 }
 
 .tile-with-note,
@@ -471,10 +449,9 @@ table.options tr.sum td {
 }
 
 .river {
-  display: grid;
-  grid-template-columns: repeat(6, max-content);
+  display: flex;
+  flex-direction: column;
   gap: 3px;
-  align-items: center;
 }
 
 .danger-list {
