@@ -5,6 +5,7 @@ import {
   generateNanikiruQuestion,
   generateScoreQuestion,
   generateWaitQuestion,
+  safestScore,
 } from './generate';
 import { seededRng } from './random';
 import { WinContext, scoreHand } from './scoring';
@@ -206,6 +207,10 @@ describe('問題の生成', () => {
       expect(q.hand).toHaveLength(13);
       const all = [...q.hand, ...q.river, q.doraIndicator];
       expect(q.tsumogiri).toHaveLength(q.river.length);
+      // 現物以外で、最も安全な牌は1〜2種類
+      const safest = safestScore(q);
+      expect(safest).toBeGreaterThan(0);
+      expect(q.infos.filter((i) => i.score === safest).length).toBeLessThanOrEqual(2);
       expect(toCounts(all).every((n) => n <= 4)).toBe(true);
     }
   });

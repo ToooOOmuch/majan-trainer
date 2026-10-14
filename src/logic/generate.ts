@@ -147,6 +147,11 @@ export function readContextOf(q: Pick<DangerQuestion, 'river' | 'tsumogiri'>): R
   return { riichiTile: q.river[last], riichiTsumogiri: q.tsumogiri[last], lastTedashi };
 }
 
+/** 現物を除いた中で、最も安全な牌の危険度 */
+export function safestScore(q: Pick<DangerQuestion, 'infos'>): number {
+  return Math.min(...q.infos.filter((i) => i.score > 0).map((i) => i.score));
+}
+
 export function generateDangerQuestion(rng: Rng): DangerQuestion {
   for (;;) {
     const wall = new Wall();
@@ -171,16 +176,16 @@ export function generateDangerQuestion(rng: Rng): DangerQuestion {
     const ctx = readContextOf({ river, tsumogiri });
     const kinds = [...new Set(hand)];
     const infos = kinds.map((t) => evaluateDanger(t, river, visible, ctx)).sort((a, b) => a.score - b.score || a.tile - b.tile);
-    const hasGenbutsu = infos[0].score === 0;
-    // 現物がある問題は簡単すぎるので3割程度にする
-    if (hasGenbutsu && rng() < 0.7) continue;
-    const distinctScores = new Set(infos.map((i) => i.score)).size;
-    if (distinctScores < 4) continue;
+    // 現物は選べないので、現物以外の牌の中で問題を作る
+    const choices = infos.filter((i) => i.score > 0);
+    if (choices.length < 5) continue;
+    const safest = choices[0].score;
+    if (new Set(choices.map((i) => i.score)).size < 4) continue;
     // 最も安全な牌が多すぎる問題は避ける
-    if (infos.filter((i) => i.score === infos[0].score).length > 2) continue;
+    if (choices.filter((i) => i.score === safest).length > 2) continue;
     // 手出しリーチの問題では、読みを入れないと選んでしまう牌（スジだけ見れば最も安全に見える牌）がある問題を多めにする
     if (!riichiTsumogiri && rng() < 0.6) {
-      const trap = infos.some((i) => i.read && evaluateDanger(i.tile, river, visible).score <= infos[0].score);
+      const trap = choices.some((i) => i.read && evaluateDanger(i.tile, river, visible).score <= safest);
       if (!trap) continue;
     }
     return { kind: 'danger', hand, river, tsumogiri, doraIndicator, infos };

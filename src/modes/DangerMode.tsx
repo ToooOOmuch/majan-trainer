@@ -1,24 +1,28 @@
 import { useState } from 'react';
 import { Tile } from '../components/Tile';
 import { readSujis } from '../logic/danger';
-import { readContextOf, type DangerQuestion } from '../logic/generate';
+import { readContextOf, safestScore, type DangerQuestion } from '../logic/generate';
 import { Tile as TileId, doraFromIndicator, isHonor, numberOf, tileName } from '../logic/tiles';
 
 type Props = { question: DangerQuestion; onAnswer: (correct: boolean) => void };
 
 export function DangerMode({ question, onAnswer }: Props) {
   const [choice, setChoice] = useState<TileId | null>(null);
-  const safest = question.infos[0].score;
+  // 現物は選べないので、現物以外で最も安全な牌が正解
+  const safest = safestScore(question);
   const scoreOf = (t: TileId) => question.infos.find((i) => i.tile === t)!.score;
 
+  const isGenbutsu = (t: TileId) => scoreOf(t) === 0;
+
   const choose = (t: TileId) => {
-    if (choice !== null) return;
+    if (choice !== null || isGenbutsu(t)) return;
     setChoice(t);
     onAnswer(scoreOf(t) === safest);
   };
 
   const answered = choice !== null;
   const markOf = (t: TileId) => {
+    if (isGenbutsu(t)) return 'dim';
     if (!answered) return undefined;
     if (scoreOf(t) === safest) return 'good';
     if (t === choice) return 'bad';
@@ -34,7 +38,7 @@ export function DangerMode({ question, onAnswer }: Props) {
 
   return (
     <div className="mode">
-      <p className="prompt">対面がリーチしました。いちばん安全な牌を切ってください。</p>
+      <p className="prompt">対面がリーチしました。現物以外で、いちばん安全な牌を切ってください。</p>
 
       <div className="board">
         <div className="board-info">
@@ -66,9 +70,10 @@ export function DangerMode({ question, onAnswer }: Props) {
 
       <div className="tile-row">
         {question.hand.map((t, i) => (
-          <Tile key={i} tile={t} onClick={() => choose(t)} mark={markOf(t)} />
+          <Tile key={i} tile={t} onClick={isGenbutsu(t) ? undefined : () => choose(t)} mark={markOf(t)} />
         ))}
       </div>
+      {question.hand.some(isGenbutsu) && <p className="muted small-text">暗くなっている牌は現物なので選べません。</p>}
 
       {answered && (
         <div className="explain">
@@ -84,7 +89,7 @@ export function DangerMode({ question, onAnswer }: Props) {
                 <div className="danger-head">
                   <Tile tile={info.tile} small />
                   <strong>{info.label}</strong>
-                  <span className="muted">危険度 {info.score}</span>
+                  <span className="muted">{info.score === 0 ? '選択不可' : `危険度 ${info.score}`}</span>
                 </div>
                 <p>{info.reason}</p>
                 {info.read && <p className="read-note">読み：{info.read}</p>}
